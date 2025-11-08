@@ -1,34 +1,54 @@
-﻿import React, {useContext, useEffect, useState} from "react";
+﻿import React, {useEffect, useState, useRef, useCallback} from "react";
 import {UsersIcon} from "@heroicons/react/20/solid";
-import {StatusContext} from "../../../providers/StatusProvider";
 
 interface CurrentViewersComponentProps {
   streamKey: string;
 }
 
+interface ViewerCountResponse {
+  viewerCount: number;
+}
+
 const CurrentViewersComponent = (props: CurrentViewersComponentProps) => {
   const { streamKey } = props;
-  const { streamStatus, refreshStatus } = useContext(StatusContext);
-  const [currentViewersCount, setCurrentViewersCount] = useState<number>(0)
+  const [currentViewersCount, setCurrentViewersCount] = useState<number>(0);
+  const apiPath = import.meta.env.VITE_API_PATH;
+  const intervalRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    refreshStatus()
-  }, []);
-  
-  useEffect(() => {
-    if(!streamKey || !streamStatus){
+  const fetchViewerCount = useCallback(async () => {
+    if (!streamKey) {
       return;
     }
 
-    const sessions = streamStatus.filter((session) => session.streamKey === streamKey);
+    try {
+      const response = await fetch(`${apiPath}/stream/${streamKey}/viewers`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
 
-    if(sessions.length !== 0){
-      setCurrentViewersCount(() =>
-        sessions.length !== 0 
-          ? sessions[0].whepSessions.length
-          : 0)
+      if (response.ok) {
+        const data: ViewerCountResponse = await response.json();
+        setCurrentViewersCount(data.viewerCount);
+      }
+    } catch (error) {
+      console.error("Error fetching viewer count:", error);
     }
-  }, [streamStatus]);
+  }, [streamKey, apiPath]);
+
+  useEffect(() => {
+    fetchViewerCount();
+
+    // Poll every 5 seconds
+    intervalRef.current = window.setInterval(fetchViewerCount, 5000);
+
+    return () => {
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [fetchViewerCount]);
 
   return (
     <div className={"flex flex-row items-center gap-1"}>

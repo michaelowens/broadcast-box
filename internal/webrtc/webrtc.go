@@ -505,3 +505,18 @@ func GetStreamStatuses() []StreamStatus {
 
 	return out
 }
+
+func GetStreamViewerCount(streamKey string) int {
+	streamMapLock.Lock()
+	defer streamMapLock.Unlock()
+
+	stream, ok := streamMap[streamKey]
+	if !ok {
+		return 0
+	}
+
+	stream.whepSessionsLock.Lock()
+	defer stream.whepSessionsLock.Unlock()
+
+	return len(stream.whepSessions)
+}

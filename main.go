@@ -189,6 +189,33 @@ func statusHandler(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
+type streamViewersResponse struct {
+	ViewerCount int `json:"viewerCount"`
+}
+
+func streamViewersHandler(res http.ResponseWriter, req *http.Request) {
+	vals := strings.Split(req.URL.RequestURI(), "/")
+	// Expected format: /api/stream/{streamKey}/viewers
+	// After split: ["", "api", "stream", "{streamKey}", "viewers"]
+	if len(vals) < 5 || vals[len(vals)-1] != "viewers" {
+		logHTTPError(res, "Invalid URL format", http.StatusBadRequest)
+		return
+	}
+
+	streamKey := vals[len(vals)-2]
+	if !streamKeyRegex.MatchString(streamKey) {
+		logHTTPError(res, errInvalidStreamKey.Error(), http.StatusBadRequest)
+		return
+	}
+
+	viewerCount := webrtc.GetStreamViewerCount(streamKey)
+
+	res.Header().Add("Content-Type", "application/json")
+	if err := json.NewEncoder(res).Encode(streamViewersResponse{ViewerCount: viewerCount}); err != nil {
+		logHTTPError(res, err.Error(), http.StatusBadRequest)
+	}
+}
+
 func indexHTMLWhenNotFound(fs http.FileSystem) http.Handler {
 	fileServer := http.FileServer(fs)
 
@@ -297,6 +324,7 @@ func main() {
 	mux.HandleFunc("/api/sse/", corsHandler(whepServerSentEventsHandler))
 	mux.HandleFunc("/api/layer/", corsHandler(whepLayerHandler))
 	mux.HandleFunc("/api/status", corsHandler(statusHandler))
+	mux.HandleFunc("/api/stream/", corsHandler(streamViewersHandler))
 
 	server := &http.Server{
 		Handler: mux,
